@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}My Alerts{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">My Flight Alerts</h1>
+        <button onclick="openModal('create')" class="btn-primary flex items-center">
+            <i class="fas fa-plus mr-2"></i> New Alert
+        </button>
+    </div>
+
+    <!-- Alert Modal -->
+    <div id="alertModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold" id="modalTitle">Create Alert</h3>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="alertForm" method="POST">
+                <input type="hidden" id="alertId" name="alert_id">
+                <div class="space-y-4">
+                    <div>
+                        <label class="form-label">Flight</label>
+                        <select id="flightSelect" name="flight_id" class="form-input" required>
+                            {% for flight in flights %}
+                            <option value="{{ flight.flight_id }}">
+                                {{ flight.callsign }} - {{ flight.origin_country }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Alert Type</label>
+                        <select id="alertType" name="alert_type" class="form-input" required>
+                            <option value="position_change">Position Change</option>
+                            <option value="altitude_change">Altitude Change</option>
+                            <option value="status_change">Status Change</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Notification Method</label>
+                        <select id="notificationMethod" name="notification_method" class="form-input" required>
+                            <option value="email">Email</option>
+                            <option value="sms">SMS</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">End Time</label>
+                        <input type="datetime-local" id="alertEndTime" name="end_time" class="form-input" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Message (Optional)</label>
+                        <textarea id="alertMessage" name="message" class="form-input" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" class="btn-secondary">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        Save Alert
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alerts Table -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        {% if alerts %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="table-header">Flight</th>
+                        <th class="table-header">Type</th>
+                        <th class="table-header">Message</th>
+                        <th class="table-header">Notification</th>
+                        <th class="table-header">Status</th>
+                        <th class="table-header">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for alert in alerts %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <div class="font-medium">{{ alert.callsign }}</div>
+                            <div class="text-sm text-gray-500">{{ alert.origin_country }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="status-badge {{ alert.alert_type|lower|replace(' ', '_') }}">
+                                {{ alert.alert_type|title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {{ alert.message or '-' }}
+                        </td>
+                        <td class="px-6 py-4">
+                            {{ alert.notification_method|upper }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="status-badge {% if alert.status == 'active' %}in-air{% else %}on-ground{% endif %}">
+                                {{ alert.status|title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="flex space-x-2">
+                                <button onclick="editAlert(
+                                    '{{ alert.alert_id }}',
+                                    '{{ alert.flight_id }}',
+                                    '{{ alert.alert_type }}',
+                                    '{{ alert.message }}',
+                                    '{{ alert.notification_method }}',
+                                    '{{ alert.status }}',
+                                    '{{ alert.end_time }}'
+                                )" class="text-blue-600 hover:text-blue-900">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form action="{{ url_for('delete_alert', alert_id=alert.alert_id) }}" method="POST">
+                                    <button type="submit" class="text-red-600 hover:text-red-900">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center">
+            <i class="fas fa-bell-slash text-4xl text-gray-300 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900">No alerts yet</h3>
+            <p class="mt-1 text-sm text-gray-500">Create your first alert to get notified about flight changes.</p>
+            <div class="mt-6">
+                <button onclick="openModal('create')" class="btn-primary inline-flex items-center px-4 py-2">
+                    <i class="fas fa-plus mr-2"></i> Create Alert
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    let currentAction = 'create';
+    let currentAlertId = null;
+
+    function openModal(action, alertId = null) {
+        currentAction = action;
+        currentAlertId = alertId;
+        
+        const modal = document.getElementById('alertModal');
+        const title = document.getElementById('modalTitle');
+        const form = document.getElementById('alertForm');
+        
+        if (action === 'create') {
+            title.textContent = 'Create Alert';
+            form.action = "{{ url_for('create_alert') }}";
+            form.reset();
+            document.getElementById('alertEndTime').value = new Date(Date.now() + 86400000).toISOString().slice(0, 16);
+        } else {
+            title.textContent = 'Edit Alert';
+            form.action = "{{ url_for('edit_alert', alert_id=0) }}".replace('0', alertId);
+        }
+        
+        modal.classList.remove('hidden');
+    }
+
+    function editAlert(alertId, flightId, alertType, message, notificationMethod, status, endTime) {
+        document.getElementById('flightSelect').value = flightId;
+        document.getElementById('alertType').value = alertType;
+        document.getElementById('alertMessage').value = message || '';
+        document.getElementById('notificationMethod').value = notificationMethod;
+        document.getElementById('alertStatus').value = status;
+        document.getElementById('alertId').value = alertId;
+        
+        if (endTime) {
+            const dt = new Date(endTime);
+            const formatted = dt.toISOString().slice(0, 16);
+            document.getElementById('alertEndTime').value = formatted;
+        }
+        
+        openModal('edit', alertId);
+    }
+
+    function closeModal() {
+        document.getElementById('alertModal').classList.add('hidden');
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('alertModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+</script>
+{% endblock %}

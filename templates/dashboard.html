@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Flight Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Live Flight Tracker</h1>
+            <p class="text-gray-600">Real-time data from OpenSky Network</p>
+        </div>
+        <a href="{{ url_for('dashboard') }}" class="btn-primary flex items-center">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="stats-card bg-blue-50">
+            <div class="icon-circle bg-blue-100 text-blue-600">
+                <i class="fas fa-plane"></i>
+            </div>
+            <div>
+                <p class="stats-label">Active Flights</p>
+                <h3 class="stats-value">{{ flights|length }}</h3>
+            </div>
+        </div>
+        
+        <div class="stats-card bg-green-50">
+            <div class="icon-circle bg-green-100 text-green-600">
+                <i class="fas fa-plane-arrival"></i>
+            </div>
+            <div>
+                <p class="stats-label">In Air</p>
+                <h3 class="stats-value">
+                    {{ flights|selectattr('on_ground', 'equalto', False)|list|length }}
+                </h3>
+            </div>
+        </div>
+        
+        <div class="stats-card bg-yellow-50">
+            <div class="icon-circle bg-yellow-100 text-yellow-600">
+                <i class="fas fa-plane-departure"></i>
+            </div>
+            <div>
+                <p class="stats-label">On Ground</p>
+                <h3 class="stats-value">
+                    {{ flights|selectattr('on_ground', 'equalto', True)|list|length }}
+                </h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flight Map -->
+    <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+        <div class="p-4 border-b">
+            <h2 class="text-xl font-semibold">Live Flight Map</h2>
+        </div>
+        <div id="flightMap" class="h-96"></div>
+    </div>
+
+    <!-- Flight Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-4 border-b">
+            <h2 class="text-xl font-semibold">Flight Data</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="table-header">Callsign</th>
+                        <th class="table-header">Origin</th>
+                        <th class="table-header">Position</th>
+                        <th class="table-header">Altitude</th>
+                        <th class="table-header">Speed</th>
+                        <th class="table-header">Status</th>
+                        <th class="table-header">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for flight in flights %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {{ flight.callsign or 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4">
+                            {{ flight.origin_country or 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if flight.longitude and flight.latitude %}
+                                {{ "%.4f, %.4f"|format(flight.longitude, flight.latitude) }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if flight.altitude %}
+                                {{ "%.0f m"|format(flight.altitude) }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if flight.velocity %}
+                                {{ "%.1f m/s"|format(flight.velocity) }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="status-badge {% if flight.on_ground %}on-ground{% else %}in-air{% endif %}">
+                                {% if flight.on_ground %}On Ground{% else %}In Air{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <button onclick="createAlertForFlight('{{ flight.flight_id }}')" 
+                                    class="text-blue-600 hover:text-blue-900 mr-2">
+                                <i class="fas fa-bell"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                            No flight data available
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Include Leaflet JS for maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<script>
+    // Initialize map
+    const map = L.map('flightMap').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Add flight markers
+    {% for flight in flights %}
+        {% if flight.latitude and flight.longitude %}
+            const marker{{ loop.index }} = L.marker([{{ flight.latitude }}, {{ flight.longitude }}]).addTo(map);
+            marker{{ loop.index }}.bindPopup(`
+                <b>{{ flight.callsign or 'N/A' }}</b><br>
+                From: {{ flight.origin_country or 'Unknown' }}<br>
+                Altitude: {{ "%.0f m"|format(flight.altitude) if flight.altitude else 'N/A' }}<br>
+                Speed: {{ "%.1f m/s"|format(flight.velocity) if flight.velocity else 'N/A' }}<br>
+                Status: {% if flight.on_ground %}On Ground{% else %}In Air{% endif %}
+            `);
+            
+            {% if not flight.on_ground %}
+                marker{{ loop.index }}.setIcon(
+                    L.icon({
+                        iconUrl: '{{ url_for("static", filename="images/plane-icon.png") }}',
+                        iconSize: [25, 25],
+                        iconAnchor: [12, 12]
+                    })
+                );
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+
+    function createAlertForFlight(flightId) {
+        // Implementation would open the alert creation modal
+        console.log('Create alert for flight:', flightId);
+        // In a real implementation, this would open your alert creation form
+        // with the flightId pre-populated
+    }
+</script>
+{% endblock %}

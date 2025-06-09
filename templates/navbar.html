@@ -1,0 +1,53 @@
+<nav class="bg-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <div class="flex items-center">
+                <a href="{{ url_for('dashboard') }}" class="flex items-center">
+                    <i class="fas fa-plane text-blue-600 text-2xl mr-2"></i>
+                    <span class="text-xl font-bold text-blue-600">Flyware</span>
+                </a>
+            </div>
+
+            <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                <a href="{{ url_for('dashboard') }}" 
+                   class="nav-link {% if request.path == url_for('dashboard') %}active{% endif %}">
+                    Dashboard
+                </a>
+                <a href="{{ url_for('alerts') }}" 
+                   class="nav-link {% if request.path == url_for('alerts') %}active{% endif %}">
+                    My Alerts
+                </a>
+            </div>
+
+            <div class="ml-4 flex items-center">
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="flex items-center space-x-2 focus:outline-none">
+                        <span class="text-gray-700">{{ session.get('username', 'Guest') }}</span>
+                        <img class="h-8 w-8 rounded-full" 
+                             src="{{ url_for('static', filename='images/user-avatar.png') }}" 
+                             alt="User profile">
+                        <i class="fas fa-chevron-down text-gray-500 text-xs transition-transform duration-200" 
+                           :class="{ 'transform rotate-180': open }"></i>
+                    </button>
+
+                    <div x-show="open" x-transition
+                         @click.away="open = false"
+                         class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                        <div class="py-1" role="menu">
+                            <a href="{{ url_for('profile') }}" 
+                               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+                               role="menuitem">
+                                <i class="fas fa-user-circle mr-2"></i> Profile
+                            </a>
+                            <a href="{{ url_for('logout') }}" 
+                               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+                               role="menuitem">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
